@@ -27,7 +27,10 @@
     <ClCompile Include="DriverEntry.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="hookSSDT.c">
+    <ClCompile Include="HookSSDT.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MemoryPattern.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -35,7 +38,7 @@
     <ClInclude Include="ntdll.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="hookSSDT.h">
+    <ClInclude Include="HookSSDT.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="page.h">
@@ -44,9 +47,24 @@
     <ClInclude Include="DriverEntry.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="MemoryPattern.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ia32.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PageClose.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PageReset.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="page.asm">
+    <MASM Include="PageClose.asm">
+      <Filter>Source Files</Filter>
+    </MASM>
+    <MASM Include="PageReset.asm">
       <Filter>Source Files</Filter>
     </MASM>
   </ItemGroup>

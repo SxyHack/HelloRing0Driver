@@ -161,18 +161,24 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DriverEntry.c" />
-    <ClCompile Include="hookSSDT.c" />
+    <ClCompile Include="HookSSDT.c" />
+    <ClCompile Include="MemoryPattern.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="PageClose.h" />
     <ClInclude Include="DriverEntry.h" />
-    <ClInclude Include="hookSSDT.h" />
+    <ClInclude Include="HookSSDT.h" />
+    <ClInclude Include="ia32.h" />
+    <ClInclude Include="MemoryPattern.h" />
     <ClInclude Include="ntdll.h" />
     <ClInclude Include="page.h" />
+    <ClInclude Include="PageReset.h" />
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="page.asm">
+    <MASM Include="PageClose.asm">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </MASM>
+    <MASM Include="PageReset.asm" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

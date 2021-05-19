@@ -1,4 +1,5 @@
 #pragma once
+#include <ntifs.h>  // 一定要在<ntddk.h>前面
 #include <ntddk.h>
 #include <ntdef.h>
 
@@ -194,3 +195,16 @@ typedef struct _IMAGE_NT_HEADERS64 {
 } IMAGE_NT_HEADERS64, * PIMAGE_NT_HEADERS64;
 
 #pragma endregion
+
+// 微软未文档化SDK
+
+// 函数指针
+typedef NTSTATUS(NTAPI* _NtOpenProcess)(
+	PHANDLE processHandle,
+	ACCESS_MASK desiredAccess,
+	POBJECT_ATTRIBUTES objectAttributes,
+	PCLIENT_ID clientId);
+
+
+// 声明
+PCHAR PsGetProcessImageFileName(PEPROCESS Process);

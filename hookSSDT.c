@@ -1,5 +1,7 @@
 #include "hookSSDT.h"
+#include "MemoryPattern.h"
 #include "page.h"
+
 #include <intrin.h>
 
 #pragma intrinsic(__readmsr)
@@ -35,64 +37,110 @@ void ResetPageWriteProtect()
 }
 
 
-PKESERVICE_DESCRIPTOR_TABLE GetSSDTAddress()
+void ClosePageWrite64(KIRQL* KiRQL)
+{
+	UINT64 CR0 = __readcr0();
+	CR0 &= 0xfffffffffffeffff;
+	__writecr0(CR0);
+	_disable();
+
+	*KiRQL = KeRaiseIrqlToDpcLevel();
+}
+
+void ResetPageWrite64(KIRQL KiRQL)
+{
+	UINT64 CR0 = __readcr0();
+	CR0 |= 0x10000;
+	_enable();
+	__writecr0(CR0);
+	KeLowerIrql(KiRQL);
+}
+
+PKESERVICE_DESCRIPTOR_TABLE GetSSDTEntryPtr()
 {
 #ifdef _WIN64
-	PVOID pServiceDescriptorTable = NULL;
-	PVOID pKiSystemCall64 = NULL;
-	UCHAR ulCode1 = 0;
-	UCHAR ulCode2 = 0;
-	UCHAR ulCode3 = 0;
-	LONG  lOffset = 0; 	// 注意使用有符号整型
+	//PKESERVICE_DESCRIPTOR_TABLE pServiceDescriptorTable = NULL;
+	ULONG64 ulOutAddr = 0;
+	ULONG64 ulKiSystemServiceUserAddr = 0xFFFFFFFFFFFFFFFF;
+	ULONG64 ulKiSSDTAddr = 0;
+	PVOID64 pSig1, pSig2 = NULL;
+	ANSI_STRING strSig1, strSig2;
+	UNICODE_STRING ucSig1;
+	// 读取C0000082寄存器,获取到 KiSystemCall64Shadow 函数地址
+	ULONG64 ulKiSystemCall64ShadowAddr = (ULONG64)__readmsr(0xC0000082);
 
-	// 读取C0000082寄存器,获取 KiSystemCall64 函数地址
-	pKiSystemCall64 = (PVOID)__readmsr(0xC0000082);
+	UCHAR ch1[] = "\x0F\xAE\xE8\x65????????\xE9????\xC3";
+	
+	RtlInitAnsiString(&strSig1, (PCSZ)ch1);
+	RtlInitUnicodeString(&ucSig1, L"\x0F\xAE\xE8\x65????????\xE9????\xC3");
 
-	// 搜索特征码 4C8D15
-	for (ULONG i = 0; i < 1024; i++)
+	if (!MmIsAddressValid((PVOID)ulKiSystemCall64ShadowAddr))
 	{
-		// 获取内存数据
-		ulCode1 = *((PUCHAR)((PUCHAR)pKiSystemCall64 + i));
-		ulCode2 = *((PUCHAR)((PUCHAR)pKiSystemCall64 + i + 1));
-		ulCode3 = *((PUCHAR)((PUCHAR)pKiSystemCall64 + i + 2));
-		// 判断
-		if (0x4C == ulCode1 && 0x8D == ulCode2 && 0x15 == ulCode3)
-		{
-			// 获取偏移
-			lOffset = *((PLONG)((PUCHAR)pKiSystemCall64 + i + 3));
-			// 根据偏移计算地址
-			pServiceDescriptorTable = (PVOID)(((PUCHAR)pKiSystemCall64 + i) + 7 + lOffset);
-			break;
-		}
+		return NULL;
 	}
-	return pServiceDescriptorTable;
+
+	// 搜索特征码
+	if ((pSig1 = FindSignature(strSig1, ulKiSystemCall64ShadowAddr)) == NULL)
+	{
+		return NULL;
+	}
+
+	ulOutAddr = (ULONG64)pSig1 + 13L;
+	RtlCopyMemory(&ulKiSystemServiceUserAddr, (PUCHAR)ulOutAddr, 4);
+	ulKiSystemServiceUserAddr += ulOutAddr;
+	ulKiSystemServiceUserAddr += 5;
+
+	if (!MmIsAddressValid((PVOID)ulKiSystemServiceUserAddr))
+	{
+		return NULL;
+	}
+
+	RtlInitAnsiString(&strSig2, "\x4C\x8D\x15????");
+	// 搜索特征码
+	if ((pSig2 = FindSignature(strSig2, ulKiSystemServiceUserAddr)) == NULL)
+	{
+		return NULL;
+	}
+
+	ulOutAddr = (ULONG64)pSig2;
+	RtlCopyMemory(&ulKiSSDTAddr, (PUCHAR)(ulOutAddr + 3L), 4);
+	ulKiSSDTAddr += ulOutAddr;
+	ulKiSSDTAddr += 7;
+
+	//if (MmIsAddressValid((PVOID)ulKiSSDTAddr))
+	//{
+	//	return NULL;
+	//}
+	return (PKESERVICE_DESCRIPTOR_TABLE)ulKiSSDTAddr;
 #else
 	return &KeServiceDescriptorTable;
 #endif
 }
 
-PVOID GetSSDTFunctionAddr(PCHAR pszFunctionName)
+PVOID GetSSDTFunction(PCHAR pszFunctionName, PULONG64 pFunctionID)
 {
-	UNICODE_STRING ustrDllFileName;
+	UNICODE_STRING ucNTDLL;
 	ULONG ulSSDTFunctionIndex = 0;
 	PVOID pFunctionAddress = NULL;
-	RtlInitUnicodeString(&ustrDllFileName, L"\\??\\C:\\Windows\\System32\\ntdll.dll");
+	RtlInitUnicodeString(&ucNTDLL, L"\\??\\C:\\Windows\\System32\\ntdll.dll");
 	// 从 ntdll.dll 中获取SSDT函数索引号
-	ulSSDTFunctionIndex = GetSSDTFunctionIndex(ustrDllFileName, pszFunctionName);
+	ulSSDTFunctionIndex = GetSSDTFunctionIndex(ucNTDLL, pszFunctionName);
 
-#ifndef _WIN64
+#ifdef _WIN64
+	PKESERVICE_DESCRIPTOR_TABLE pServiceDescriptorTable = GetSSDTEntryPtr();
+	// 根据索引号, 从SSDT表中获取对应函数偏移地址并计算出函数地址
+	ULONG64 ulFunc = pServiceDescriptorTable->ServiceTableBase[ulSSDTFunctionIndex];
+	ULONG64 ulOffset = ulFunc >> 4;
+	pFunctionAddress = (PVOID)((PUCHAR)pServiceDescriptorTable->ServiceTableBase + ulOffset);
+	*pFunctionID = ulSSDTFunctionIndex;
+	// 显示
+	DbgPrint("[%s][SSDT Addr:0x%p][Index:%d][Address:0x%p]\n", pszFunctionName, 
+		pServiceDescriptorTable, ulSSDTFunctionIndex, pFunctionAddress);
+#else
 	// 根据索引号, 从SSDT表中获取对应函数地址
 	pFunctionAddress = (PVOID)KeServiceDescriptorTable.ServiceTableBase[ulSSDTFunctionIndex];
 	// 显示
-	DbgPrint("[%s][Index:%d][Address:0x%p]\n", pszFunctionName, ulSSDTFunctionIndex, pFunctionAddress);
-#else 
-	PKESERVICE_DESCRIPTOR_TABLE pServiceDescriptorTable = GetSSDTAddress();
-	// 根据索引号, 从SSDT表中获取对应函数偏移地址并计算出函数地址
-	ULONG ulOffset = pServiceDescriptorTable->ServiceTableBase[ulSSDTFunctionIndex] >> 4;
-	pFunctionAddress = (PVOID)((PUCHAR)pServiceDescriptorTable->ServiceTableBase + ulOffset);
-
-	// 显示
-	DbgPrint("[%s][SSDT Addr:0x%p][Index:%d][Address:0x%p]\n", pszFunctionName, pServiceDescriptorTable, ulSSDTFunctionIndex, pFunctionAddress);
+	DbgPrint("[%s][Index:%d][Address:0x%p]\n", pszFunctionName, ulSSDTFunctionIndex, pFunctionAddress); 
 #endif
 
 	return pFunctionAddress;
@@ -179,7 +227,7 @@ ULONG GetIndexFromExportTable(PVOID pBaseAddress, PCHAR pszFunctionName)
 	return ulFunctionIndex;
 }
 
-ULONG GetSSDTFunctionIndex(UNICODE_STRING ustrDllFileName, PCHAR pszFunctionName)
+ULONG GetSSDTFunctionIndex(UNICODE_STRING binaryFilePath, PCHAR pszFunctionName)
 {
 	ULONG ulFunctionIndex = 0;
 	NTSTATUS status = STATUS_SUCCESS;
@@ -188,7 +236,7 @@ ULONG GetSSDTFunctionIndex(UNICODE_STRING ustrDllFileName, PCHAR pszFunctionName
 	PVOID pBaseAddress = NULL;
 
 	// 内存映射文件
-	status = DllFileMap(ustrDllFileName, &hFile, &hSection, &pBaseAddress);
+	status = DllFileMap(binaryFilePath, &hFile, &hSection, &pBaseAddress);
 	if (!NT_SUCCESS(status))
 	{
 		KdPrint(("DllFileMap Error!\n"));
@@ -203,3 +251,14 @@ ULONG GetSSDTFunctionIndex(UNICODE_STRING ustrDllFileName, PCHAR pszFunctionName
 	ZwClose(hFile);
 	return ulFunctionIndex;
 }
+
+void SetSSDTFunction(PKESERVICE_DESCRIPTOR_TABLE pSSDT, ULONG64 ulFuncID, ULONG64 ulHookFunctionAddr)
+{
+	if (pSSDT == NULL)
+		return;
+
+	ULONG64 ulBase = (ULONG64)pSSDT->ServiceTableBase;
+	ULONG uOffset = (ULONG)(ulHookFunctionAddr - ulBase);
+	pSSDT->ServiceTableBase[ulFuncID] = (uOffset << 4);
+}
+

@@ -5,8 +5,6 @@
 // Include files.
 //
 
-#include <ntddk.h>          // various NT definitions
-#include <string.h>
 #include "DriverEntry.h"
 #include "hookSSDT.h"
 
@@ -35,6 +33,7 @@ DRIVER_DISPATCH SioctlCreateClose;
 DRIVER_DISPATCH SioctlDeviceControl;
 
 DRIVER_UNLOAD SioctlUnloadDriver;
+
 
 void PrintIRPInfo(PIRP irp);
 void PrintChars(_In_reads_(CountChars) PCHAR bufferAddress, _In_ size_t CountChars);
@@ -138,11 +137,50 @@ VOID SioctlUnloadDriver(IN PDRIVER_OBJECT DriverObject)
 	}
 }
 
+PULONG64 lpFnNtOpenProcess = NULL; // 保存原始的函数地址
+
+NTSTATUS NTAPI HK_NtOpenProcess(PHANDLE processHandle, ACCESS_MASK desiredAccess, POBJECT_ATTRIBUTES objectAttributes, PCLIENT_ID clientId)
+{
+	UNREFERENCED_PARAMETER(processHandle);
+	UNREFERENCED_PARAMETER(desiredAccess);
+	UNREFERENCED_PARAMETER(objectAttributes);
+	UNREFERENCED_PARAMETER(clientId);
+
+	PEPROCESS process = 0;
+	if (STATUS_SUCCESS == PsLookupProcessByProcessId(clientId->UniqueProcess, &process))
+	{
+		if (strcmp(PsGetProcessImageFileName(process), "notepad.exe") == 0)
+		{
+			return STATUS_ACCESS_DENIED;
+		}
+	}
+
+	//判断要打开的进程ID是不是我们要保护的进程
+	//if (clientId->UniqueProcess == (HANDLE)76)
+	//	return (NTSTATUS)STATUS_ACCESS_DENIED; // -1073741790;//返回“拒绝访问”错误
+	//不是我们要保护的进程，定义一个函数指针 _NtOpenProcess ,根据 oldNtOpenProcess 记录的真实函数的地址进行 Call
+	//也就是说其他进程直接交还给系统的 NtOpenProcess 处理
+	return ((_NtOpenProcess)lpFnNtOpenProcess)(processHandle, desiredAccess, objectAttributes, clientId);
+}
 
 VOID DoHookSsdt()
 {
-	PKESERVICE_DESCRIPTOR_TABLE pAddress = GetSSDTAddress();
+	ULONG64 ulFunctionID = 0;
+	RTL_OSVERSIONINFOW ver = { 0 };
+	ver.dwOSVersionInfoSize = sizeof(ver);
+	RtlGetVersion(&ver);
+
+	ClosePageWriteProtect();
+	PKESERVICE_DESCRIPTOR_TABLE pAddress = GetSSDTEntryPtr();
 	SIOCTL_KDPRINT(("SSDT ADDR: 0X%08X in METHOD_NEITHER\n", pAddress));
+
+	lpFnNtOpenProcess = GetSSDTFunction("NtOpenProcess", &ulFunctionID);
+
+	SetSSDTFunction(pAddress, ulFunctionID, (ULONG64)HK_NtOpenProcess);
+	//pAddress->ServiceTableBase[ulFunctionID] = &HK_NtOpenProcess;
+	SIOCTL_KDPRINT(("NtOpenProcess ADDR: 0X%08X\n", lpFnNtOpenProcess));
+
+	ResetPageWriteProtect();
 }
 
 /*++
@@ -168,8 +206,8 @@ NTSTATUS SioctlDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 	PCHAR               inBuf, outBuf; // pointer to Input and output buffer
 	PCHAR               data = "This String is from Device Driver !!!";
 	size_t              datalen = strlen(data) + 1;//Length of data including null
-	PMDL                mdl = NULL;
-	PCHAR               buffer = NULL;
+	//PMDL                mdl = NULL;
+	//PCHAR               buffer = NULL;
 
 	PAGED_CODE();
 	irpSp = IoGetCurrentIrpStackLocation(Irp);
@@ -187,8 +225,8 @@ NTSTATUS SioctlDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 	case IOCTL_SIOCTL_METHOD_BUFFERED:
 		SIOCTL_KDPRINT(("Called IOCTL_SIOCTL_METHOD_BUFFERED\n"));
 		PrintIRPInfo(Irp);
-		inBuf = Irp->AssociatedIrp.SystemBuffer;
-		outBuf = Irp->AssociatedIrp.SystemBuffer;
+		inBuf = (PCHAR)Irp->AssociatedIrp.SystemBuffer;
+		outBuf = (PCHAR)Irp->AssociatedIrp.SystemBuffer;
 		SIOCTL_KDPRINT(("\tData from User :"));
 		PrintChars(inBuf, inBufLength);
 		RtlCopyBytes(outBuf, data, outBufLength);
@@ -199,139 +237,42 @@ NTSTATUS SioctlDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
 		DoHookSsdt();
 		break;
-	case IOCTL_SIOCTL_METHOD_NEITHER:
-		SIOCTL_KDPRINT(("Called IOCTL_SIOCTL_METHOD_NEITHER\n"));
-		PrintIRPInfo(Irp);
-		inBuf = irpSp->Parameters.DeviceIoControl.Type3InputBuffer;
-		outBuf = Irp->UserBuffer;
-		try
-		{
-			ProbeForRead(inBuf, inBufLength, sizeof(UCHAR));
-			SIOCTL_KDPRINT(("\tData from User :"));
-			PrintChars(inBuf, inBufLength);
-		}
-		except(EXCEPTION_EXECUTE_HANDLER)
-		{
-			ntStatus = GetExceptionCode();
-			SIOCTL_KDPRINT(("Exception while accessing inBuf 0X%08X in METHOD_NEITHER\n", ntStatus));
-			break;
-		}
-
-		mdl = IoAllocateMdl(inBuf, inBufLength, FALSE, TRUE, NULL);
-		if (!mdl)
-		{
-			ntStatus = STATUS_INSUFFICIENT_RESOURCES;
-			break;
-		}
-		try
-		{
-			MmProbeAndLockPages(mdl, UserMode, IoReadAccess);
-		}
-		except(EXCEPTION_EXECUTE_HANDLER)
-		{
-			ntStatus = GetExceptionCode();
-			SIOCTL_KDPRINT(("Exception while locking inBuf 0X%08X in METHOD_NEITHER\n", ntStatus));
-			IoFreeMdl(mdl);
-			break;
-		}
-
-		buffer = MmGetSystemAddressForMdlSafe(mdl, NormalPagePriority | MdlMappingNoExecute);
-		if (!buffer) {
-			ntStatus = STATUS_INSUFFICIENT_RESOURCES;
-			MmUnlockPages(mdl);
-			IoFreeMdl(mdl);
-			break;
-		}
-
-		SIOCTL_KDPRINT(("\tData from User (SystemAddress) : "));
-		PrintChars(buffer, inBufLength);
-
-		// Once the read is over unmap and unlock the pages.
-		MmUnlockPages(mdl);
-		IoFreeMdl(mdl);
-
-		mdl = IoAllocateMdl(outBuf, outBufLength, FALSE, TRUE, NULL);
-		if (!mdl)
-		{
-			ntStatus = STATUS_INSUFFICIENT_RESOURCES;
-			break;
-		}
-
-		try
-		{
-			MmProbeAndLockPages(mdl, UserMode, IoWriteAccess);
-		}
-		except(EXCEPTION_EXECUTE_HANDLER)
-		{
-			ntStatus = GetExceptionCode();
-			SIOCTL_KDPRINT((
-				"Exception while locking outBuf 0X%08X in METHOD_NEITHER\n",
-				ntStatus));
-			IoFreeMdl(mdl);
-			break;
-		}
-
-		buffer = MmGetSystemAddressForMdlSafe(mdl, NormalPagePriority | MdlMappingNoExecute);
-		if (!buffer) {
-			MmUnlockPages(mdl);
-			IoFreeMdl(mdl);
-			ntStatus = STATUS_INSUFFICIENT_RESOURCES;
-			break;
-		}
-
-		RtlCopyBytes(buffer, data, outBufLength);
-		SIOCTL_KDPRINT(("\tData to User : %s\n", buffer));
-		PrintChars(buffer, datalen);
-		MmUnlockPages(mdl);
-		IoFreeMdl(mdl);
-
-		Irp->IoStatus.Information = (outBufLength < datalen ? outBufLength : datalen);
-		break;
-	case IOCTL_SIOCTL_METHOD_IN_DIRECT:
-		SIOCTL_KDPRINT(("Called IOCTL_SIOCTL_METHOD_IN_DIRECT\n"));
-		PrintIRPInfo(Irp);
-		inBuf = Irp->AssociatedIrp.SystemBuffer;
-		SIOCTL_KDPRINT(("\tData from User in InputBuffer: "));
-		PrintChars(inBuf, inBufLength);
-
-		buffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority | MdlMappingNoExecute);
-
-		if (!buffer) {
-			ntStatus = STATUS_INSUFFICIENT_RESOURCES;
-			break;
-		}
-
-		SIOCTL_KDPRINT(("\tData from User in OutputBuffer: "));
-		PrintChars(buffer, outBufLength);
-		Irp->IoStatus.Information = MmGetMdlByteCount(Irp->MdlAddress);
-
-		break;
-	case IOCTL_SIOCTL_METHOD_OUT_DIRECT:
-		SIOCTL_KDPRINT(("Called IOCTL_SIOCTL_METHOD_OUT_DIRECT\n"));
-		PrintIRPInfo(Irp);
-		inBuf = Irp->AssociatedIrp.SystemBuffer;
-
-		SIOCTL_KDPRINT(("\tData from User : "));
-		PrintChars(inBuf, inBufLength);
-
-		buffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority | MdlMappingNoExecute);
-
-		if (!buffer) {
-			ntStatus = STATUS_INSUFFICIENT_RESOURCES;
-			break;
-		}
-		RtlCopyBytes(buffer, data, outBufLength);
-		SIOCTL_KDPRINT(("\tData to User : "));
-		PrintChars(buffer, datalen);
-		Irp->IoStatus.Information = (outBufLength < datalen ? outBufLength : datalen);
-
-		break;
+	//case IOCTL_SIOCTL_METHOD_IN_DIRECT:
+	//	SIOCTL_KDPRINT(("Called IOCTL_SIOCTL_METHOD_IN_DIRECT\n"));
+	//	PrintIRPInfo(Irp);
+	//	inBuf = (PCHAR)Irp->AssociatedIrp.SystemBuffer;
+	//	SIOCTL_KDPRINT(("\tData from User in InputBuffer: "));
+	//	PrintChars(inBuf, inBufLength);
+	//	buffer = (PCHAR)MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority | MdlMappingNoExecute);
+	//	if (!buffer) {
+	//		ntStatus = STATUS_INSUFFICIENT_RESOURCES;
+	//		break;
+	//	}
+	//	SIOCTL_KDPRINT(("\tData from User in OutputBuffer: "));
+	//	PrintChars(buffer, outBufLength);
+	//	Irp->IoStatus.Information = MmGetMdlByteCount(Irp->MdlAddress);
+	//	break;
+	//case IOCTL_SIOCTL_METHOD_OUT_DIRECT:
+	//	SIOCTL_KDPRINT(("Called IOCTL_SIOCTL_METHOD_OUT_DIRECT\n"));
+	//	PrintIRPInfo(Irp);
+	//	inBuf = (PCHAR)Irp->AssociatedIrp.SystemBuffer;
+	//	SIOCTL_KDPRINT(("\tData from User : "));
+	//	PrintChars(inBuf, inBufLength);
+	//	buffer = (PCHAR)MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority | MdlMappingNoExecute);
+	//	if (!buffer) {
+	//		ntStatus = STATUS_INSUFFICIENT_RESOURCES;
+	//		break;
+	//	}
+	//	RtlCopyBytes(buffer, data, outBufLength);
+	//	SIOCTL_KDPRINT(("\tData to User : "));
+	//	PrintChars(buffer, datalen);
+	//	Irp->IoStatus.Information = (outBufLength < datalen ? outBufLength : datalen);
+	//	break;
 	default:
 
 		//
 		// The specified I/O control code is unrecognized by this driver.
 		//
-
 		ntStatus = STATUS_INVALID_DEVICE_REQUEST;
 		SIOCTL_KDPRINT(("ERROR: unrecognized IOCTL %x\n",
 			irpSp->Parameters.DeviceIoControl.IoControlCode));

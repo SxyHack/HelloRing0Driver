@@ -1,4 +1,3 @@
 #pragma once
-
-void CloseProtect64();
-void ResetProtect64();
+#include "PageClose.h"
+#include "PageReset.h"
