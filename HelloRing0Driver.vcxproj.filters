@@ -19,18 +19,33 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="HelloRing0Driver.inf">
+    <Inf Include="TestHook.inf">
       <Filter>Driver Files</Filter>
     </Inf>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="DriverEntry.c">
+    <ClCompile Include="DriverEntry.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="HookSSDT.c">
+    <ClCompile Include="HookSSDT.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="MemoryPattern.c">
+    <ClCompile Include="MemoryPattern.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="infinityHook\img.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="infinityHook\infinityhook.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="infinityHook\mm.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="infinityHook\stdafx.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="infinityHook\hde\hde64.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -57,6 +72,30 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="PageReset.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="infinityHook\img.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="infinityHook\infinityhook.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="infinityHook\mm.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="infinityHook\ntint.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="infinityHook\stdafx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="infinityHook\hde\hde64.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="infinityHook\hde\pstdint.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="infinityHook\hde\table64.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

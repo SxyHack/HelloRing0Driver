@@ -1,2 +1,2 @@
 #pragma once
-void ResetProtect64();
+extern "C" void ResetProtect64();

@@ -40,7 +40,7 @@ void ResetPageWriteProtect()
 void ClosePageWrite64(KIRQL* KiRQL)
 {
 	UINT64 CR0 = __readcr0();
-	CR0 &= 0xfffffffffffeffff;
+	CR0 &= ~0x10000;
 	__writecr0(CR0);
 	_disable();
 
@@ -59,29 +59,22 @@ void ResetPageWrite64(KIRQL KiRQL)
 PKESERVICE_DESCRIPTOR_TABLE GetSSDTEntryPtr()
 {
 #ifdef _WIN64
-	//PKESERVICE_DESCRIPTOR_TABLE pServiceDescriptorTable = NULL;
 	ULONG64 ulOutAddr = 0;
 	ULONG64 ulKiSystemServiceUserAddr = 0xFFFFFFFFFFFFFFFF;
 	ULONG64 ulKiSSDTAddr = 0;
 	PVOID64 pSig1, pSig2 = NULL;
 	ANSI_STRING strSig1, strSig2;
-	UNICODE_STRING ucSig1;
+
 	// 读取C0000082寄存器,获取到 KiSystemCall64Shadow 函数地址
 	ULONG64 ulKiSystemCall64ShadowAddr = (ULONG64)__readmsr(0xC0000082);
-
-	UCHAR ch1[] = "\x0F\xAE\xE8\x65????????\xE9????\xC3";
-	
-	RtlInitAnsiString(&strSig1, (PCSZ)ch1);
-	RtlInitUnicodeString(&ucSig1, L"\x0F\xAE\xE8\x65????????\xE9????\xC3");
-
+	RtlInitAnsiString(&strSig1, "\x0F\xAE\xE8\x65????????\xE9????\xC3");
 	if (!MmIsAddressValid((PVOID)ulKiSystemCall64ShadowAddr))
 	{
 		return NULL;
 	}
 
 	// 搜索特征码
-	if ((pSig1 = FindSignature(strSig1, ulKiSystemCall64ShadowAddr)) == NULL)
-	{
+	if ((pSig1 = FindSignature(strSig1, ulKiSystemCall64ShadowAddr)) == NULL) {
 		return NULL;
 	}
 
@@ -90,15 +83,13 @@ PKESERVICE_DESCRIPTOR_TABLE GetSSDTEntryPtr()
 	ulKiSystemServiceUserAddr += ulOutAddr;
 	ulKiSystemServiceUserAddr += 5;
 
-	if (!MmIsAddressValid((PVOID)ulKiSystemServiceUserAddr))
-	{
+	if (!MmIsAddressValid((PVOID)ulKiSystemServiceUserAddr)) {
 		return NULL;
 	}
 
 	RtlInitAnsiString(&strSig2, "\x4C\x8D\x15????");
 	// 搜索特征码
-	if ((pSig2 = FindSignature(strSig2, ulKiSystemServiceUserAddr)) == NULL)
-	{
+	if ((pSig2 = FindSignature(strSig2, ulKiSystemServiceUserAddr)) == NULL) {
 		return NULL;
 	}
 
@@ -107,10 +98,6 @@ PKESERVICE_DESCRIPTOR_TABLE GetSSDTEntryPtr()
 	ulKiSSDTAddr += ulOutAddr;
 	ulKiSSDTAddr += 7;
 
-	//if (MmIsAddressValid((PVOID)ulKiSSDTAddr))
-	//{
-	//	return NULL;
-	//}
 	return (PKESERVICE_DESCRIPTOR_TABLE)ulKiSSDTAddr;
 #else
 	return &KeServiceDescriptorTable;
@@ -129,18 +116,18 @@ PVOID GetSSDTFunction(PCHAR pszFunctionName, PULONG64 pFunctionID)
 #ifdef _WIN64
 	PKESERVICE_DESCRIPTOR_TABLE pServiceDescriptorTable = GetSSDTEntryPtr();
 	// 根据索引号, 从SSDT表中获取对应函数偏移地址并计算出函数地址
-	ULONG64 ulFunc = pServiceDescriptorTable->ServiceTableBase[ulSSDTFunctionIndex];
+	ULONG64 ulFunc   = pServiceDescriptorTable->ServiceTableBase[ulSSDTFunctionIndex];
 	ULONG64 ulOffset = ulFunc >> 4;
 	pFunctionAddress = (PVOID)((PUCHAR)pServiceDescriptorTable->ServiceTableBase + ulOffset);
-	*pFunctionID = ulSSDTFunctionIndex;
+	*pFunctionID     = ulSSDTFunctionIndex;
 	// 显示
-	DbgPrint("[%s][SSDT Addr:0x%p][Index:%d][Address:0x%p]\n", pszFunctionName, 
-		pServiceDescriptorTable, ulSSDTFunctionIndex, pFunctionAddress);
+	kprintf("[%s][SSDT:0x%p][Index:%d][Address:0x%p Offset:%I64d]\n", pszFunctionName, 
+		pServiceDescriptorTable, ulSSDTFunctionIndex, pFunctionAddress, ulOffset);
 #else
 	// 根据索引号, 从SSDT表中获取对应函数地址
 	pFunctionAddress = (PVOID)KeServiceDescriptorTable.ServiceTableBase[ulSSDTFunctionIndex];
 	// 显示
-	DbgPrint("[%s][Index:%d][Address:0x%p]\n", pszFunctionName, ulSSDTFunctionIndex, pFunctionAddress); 
+	kprintf("[%s][Index:%d][Address:0x%p]\n", pszFunctionName, ulSSDTFunctionIndex, pFunctionAddress);
 #endif
 
 	return pFunctionAddress;
@@ -161,7 +148,7 @@ NTSTATUS DllFileMap(UNICODE_STRING ustrDllFileName, HANDLE* phFile, HANDLE* phSe
 		FILE_SHARE_READ, FILE_SYNCHRONOUS_IO_NONALERT);
 	if (!NT_SUCCESS(status))
 	{
-		KdPrint(("ZwOpenFile Error! [error code: 0x%X]", status));
+		kprintf("ZwOpenFile Error! [error code: 0x%X]", status);
 		return status;
 	}
 	// 创建一个节对象, 以 PE 结构中的 SectionALignment 大小对齐映射文件
@@ -169,7 +156,7 @@ NTSTATUS DllFileMap(UNICODE_STRING ustrDllFileName, HANDLE* phFile, HANDLE* phSe
 	if (!NT_SUCCESS(status))
 	{
 		ZwClose(hFile);
-		KdPrint(("ZwCreateSection Error! [error code: 0x%X]", status));
+		kprintf("ZwCreateSection Error! [error code: 0x%X]", status);
 		return status;
 	}
 
@@ -179,7 +166,7 @@ NTSTATUS DllFileMap(UNICODE_STRING ustrDllFileName, HANDLE* phFile, HANDLE* phSe
 	{
 		ZwClose(hSection);
 		ZwClose(hFile);
-		KdPrint(("ZwMapViewOfSection Error! [error code: 0x%X]", status));
+		kprintf("ZwMapViewOfSection Error! [error code: 0x%X]", status);
 		return status;
 	}
 	// 返回数据
@@ -200,10 +187,10 @@ ULONG GetIndexFromExportTable(PVOID pBaseAddress, PCHAR pszFunctionName)
 	// Export Table
 	PIMAGE_EXPORT_DIRECTORY pExportTable = (PIMAGE_EXPORT_DIRECTORY)((PUCHAR)pDosHeader + pNtHeaders->OptionalHeader.DataDirectory[0].VirtualAddress);
 	// 有名称的导出函数个数
-	ULONG ulNumberOfNames = pExportTable->NumberOfNames;
+	ULONG  ulNumberOfNames = pExportTable->NumberOfNames;
 	// 导出函数名称地址表
 	PULONG lpNameArray = (PULONG)((PUCHAR)pDosHeader + pExportTable->AddressOfNames);
-	PCHAR lpName = NULL;
+	PCHAR  lpName = NULL;
 	// 开始遍历导出表
 	for (ULONG i = 0; i < ulNumberOfNames; i++)
 	{
@@ -239,7 +226,7 @@ ULONG GetSSDTFunctionIndex(UNICODE_STRING binaryFilePath, PCHAR pszFunctionName)
 	status = DllFileMap(binaryFilePath, &hFile, &hSection, &pBaseAddress);
 	if (!NT_SUCCESS(status))
 	{
-		KdPrint(("DllFileMap Error!\n"));
+		kprintf("DllFileMap Error!\n");
 		return ulFunctionIndex;
 	}
 	// 根据导出表获取导出函数地址, 从而获取 SSDT 函数索引号

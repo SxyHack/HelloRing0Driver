@@ -3,6 +3,15 @@
 #include <ntddk.h>
 #include <ntdef.h>
 
+
+#if DBG
+#define kprintf(...) \
+	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL, "TestHook.sys: "); \
+	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL, __VA_ARGS__)
+#else
+#define kprintf(...)
+#endif
+
 #pragma pack(1)
 #ifdef _WIN64
 typedef struct _KESERVICE_DESCRIPTOR_TABLE
@@ -200,11 +209,24 @@ typedef struct _IMAGE_NT_HEADERS64 {
 
 // º¯ÊýÖ¸Õë
 typedef NTSTATUS(NTAPI* _NtOpenProcess)(
-	PHANDLE processHandle,
-	ACCESS_MASK desiredAccess,
-	POBJECT_ATTRIBUTES objectAttributes,
-	PCLIENT_ID clientId);
+	OUT PHANDLE processHandle,
+	IN ACCESS_MASK desiredAccess,
+	IN POBJECT_ATTRIBUTES objectAttributes,
+	IN PCLIENT_ID clientId);
+
+typedef NTSTATUS(NTAPI* _NtCreateFile)(
+	_Out_ PHANDLE FileHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_Out_ PIO_STATUS_BLOCK IoStatusBlock,
+	_In_opt_ PLARGE_INTEGER AllocationSize,
+	_In_ ULONG FileAttributes,
+	_In_ ULONG ShareAccess,
+	_In_ ULONG CreateDisposition,
+	_In_ ULONG CreateOptions,
+	_In_reads_bytes_opt_(EaLength) PVOID EaBuffer,
+	_In_ ULONG EaLength);
 
 
 // ÉùÃ÷
-PCHAR PsGetProcessImageFileName(PEPROCESS Process);
+EXTERN_C PCHAR PsGetProcessImageFileName(PEPROCESS Process);
