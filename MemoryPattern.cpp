@@ -30,12 +30,6 @@ PVOID64 FindSignature2(IN ANSI_STRING pattern, IN ULONG64 ulAddressBeg, IN ULONG
 				bFound = FALSE;
 				break;
 			}
-
-			//if ((pattern.Buffer[j] != i[j]) && (pattern.Buffer[j] != chWildcard))
-			//{
-			//	bFound = FALSE;
-			//	break;
-			//}
 		}
 
 		if (bFound)

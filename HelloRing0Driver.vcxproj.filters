@@ -27,84 +27,79 @@
     <ClCompile Include="DriverEntry.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="HookSSDT.cpp">
+    <ClCompile Include="TitanHide\_global.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="MemoryPattern.cpp">
+    <ClCompile Include="TitanHide\hider.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="infinityHook\img.cpp">
+    <ClCompile Include="TitanHide\hooklib.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="infinityHook\infinityhook.cpp">
+    <ClCompile Include="TitanHide\hooks.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="infinityHook\mm.cpp">
+    <ClCompile Include="TitanHide\log.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="infinityHook\stdafx.cpp">
+    <ClCompile Include="TitanHide\misc.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="infinityHook\hde\hde64.cpp">
+    <ClCompile Include="TitanHide\ntdll.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TitanHide\pe.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TitanHide\ssdt.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TitanHide\threadhidefromdbg.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TitanHide\undocumented.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ntdll.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="HookSSDT.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="page.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="DriverEntry.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="MemoryPattern.h">
+    <ClInclude Include="TitanHide\_global.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ia32.h">
+    <ClInclude Include="TitanHide\DriverEntry.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="PageClose.h">
+    <ClInclude Include="TitanHide\hider.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="PageReset.h">
+    <ClInclude Include="TitanHide\hooklib.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="infinityHook\img.h">
+    <ClInclude Include="TitanHide\hooks.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="infinityHook\infinityhook.h">
+    <ClInclude Include="TitanHide\log.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="infinityHook\mm.h">
+    <ClInclude Include="TitanHide\misc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="infinityHook\ntint.h">
+    <ClInclude Include="TitanHide\ntdll.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="infinityHook\stdafx.h">
+    <ClInclude Include="TitanHide\pe.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="infinityHook\hde\hde64.h">
+    <ClInclude Include="TitanHide\ssdt.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="infinityHook\hde\pstdint.h">
+    <ClInclude Include="TitanHide\threadhidefromdbg.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="infinityHook\hde\table64.h">
+    <ClInclude Include="TitanHide\undocumented.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="PageClose.asm">
-      <Filter>Source Files</Filter>
-    </MASM>
-    <MASM Include="PageReset.asm">
-      <Filter>Source Files</Filter>
-    </MASM>
   </ItemGroup>
 </Project>

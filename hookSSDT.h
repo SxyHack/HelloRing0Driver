@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ntdll.h"
+#include "ntdll2.h"
 
 // 关闭页面写保护
 void ClosePageWriteProtect();
