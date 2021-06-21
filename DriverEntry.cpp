@@ -268,8 +268,6 @@ NTSTATUS SioctlDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 	inBufLength = irpSp->Parameters.DeviceIoControl.InputBufferLength;
 	outBufLength = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
 
-
-
 	switch (irpSp->Parameters.DeviceIoControl.IoControlCode)
 	{
 	case IOCTL_FGE_HOOK_SSDT:
